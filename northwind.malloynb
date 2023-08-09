@@ -1,0 +1,2 @@
+>>>malloy
+source: Orders is duckdb.table('orders.csv')
