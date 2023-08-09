@@ -1,8 +1,65 @@
 >>>markdown
+In this project i would like to learn:
+- how to use Malloy language on transactional data
+- how the modelling process looks like
+- how to use Malloy notebooks
+- how Malloy is different from DAX (language used in Power Bi)
+
+
+To achieve this i've chosen Northwind dataset and would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company). This challenge is a great way to train DAX skills and i highly recommend it to anyone working with Power Bi. 
+
+The source to learn about Malloy language:
+https://malloydata.github.io/documentation/
+
+I highly advise to visit Slack channel where Malloy's creators quickly answer all questions.
+
+>>>markdown
+I've decided to use csv files from this source:
+https://github.com/graphql-compose/graphql-compose-examples/tree/master/examples/northwind/data/csv
+When using csv or parquet files DuckDb is used as underlying engine. 
+There are also options to connect to BigQuery or Postgres.
+
 Dataset consists of 11 tables (2 tables are missing: customer_customer_demo and customer_demographics).
 
 Schema: (from https://github.com/yugabyte/yugabyte-db/wiki/Northwind-Sample-Database)
 
 ![Alt text](image.png)
+
+To start using Malloy i need to first create model. That includes defining data sources, specifying joins, creating dimensions and measures. Malloy is designed in a way to work swiftly with transactional data, so there is no need to create dimensional model (e.g. star schema). It is a different approach than Power Bi, where the best practice is to create star schema - this design is usually a guarantee of good performance and results in simplified DAX code. 
+
+Nice pattern is to first define base sources from tables with all measure definitions and dimensions. This would allow an analyst to get most of interesting numbers from those tables.
+Next step would to be to extend base sources by joining them together and calculating cross-table metrics.
+
+I am starting with Orders table, containing all customer transactions:
 >>>malloy
+-- specifying table as source
 source: Orders is duckdb.table('orders.csv')
+{
+    -- here i' am adding measures and dimensions specific to this source
+    -- starting with some basic measures
+    measure: orders_count is count()
+    measure: orders_customers is count(distinct customerID)
+    measure: max_freight is max(freight)
+    measure: min_freight is min(freight)
+    measure: total_freight is sum(freight)
+    measure: avg_freight is avg(freight)
+    dimension: timestamp_to_date is year(orderDate)
+    -- more complex calculations
+    //measure: days_to_ship is days(orderDate to shippedDate)
+    //measure: max_days_to_ship is max(days_to_ship)
+}
+>>>malloy
+query: basic_metrics is Orders -> {
+    aggregate: 
+        orders_count,
+        orders_customers,
+        max_freight,
+        min_freight,
+        total_freight,
+        avg_freight
+}
+>>>malloy
+query: test is Orders -> {
+having: freight < max_freight
+group_by: customerID, freight
+}
