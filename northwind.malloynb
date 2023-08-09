@@ -1,2 +1,8 @@
+>>>markdown
+Dataset consists of 11 tables (2 tables are missing: customer_customer_demo and customer_demographics).
+
+Schema: (from https://github.com/yugabyte/yugabyte-db/wiki/Northwind-Sample-Database)
+
+![Alt text](image.png)
 >>>malloy
 source: Orders is duckdb.table('orders.csv')
