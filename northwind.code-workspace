@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "../../duckdb/titanic"
+		},
+		{
+			"name": "northwind_test",
+			"path": "."
+		}
+	],
+	"settings": {}
+}

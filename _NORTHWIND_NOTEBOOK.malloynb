@@ -1,0 +1,203 @@
+>>>markdown
+
+In this project i would like to learn:
+- how to use Malloy language on transactional data
+- how the modelling process looks like
+- how to use Malloy notebooks
+- how Malloy is different from DAX (language used in Power Bi)
+
+
+To achieve this i've chosen Northwind dataset and would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company). This challenge is a great way to train DAX skills and i highly recommend it to anyone working with Power Bi. 
+
+The source to learn about Malloy language:
+https://malloydata.github.io/documentation/
+
+I highly advise to visit Slack channel where Malloy's creators quickly answer all questions.
+
+>>>markdown
+
+I've decided to use csv files from this source:
+https://github.com/graphql-compose/graphql-compose-examples/tree/master/examples/northwind/data/csv
+When using csv or parquet files DuckDb is used as underlying engine. 
+There are also options to connect to BigQuery or Postgres.
+
+Dataset consists of 11 tables (2 tables are missing: customer_customer_demo and customer_demographics).
+
+Schema: (from https://github.com/yugabyte/yugabyte-db/wiki/Northwind-Sample-Database)
+
+![Alt text](schema.png)
+
+To start using Malloy i need to first create model. That includes defining data sources, specifying joins, creating dimensions and measures. Malloy is designed in a way to work swiftly with transactional data, so there is no need to create dimensional model (e.g. star schema). It is a different approach than Power Bi, where the best practice is to create star schema - this design is usually a guarantee of good performance and results in simplified DAX code. 
+
+Nice pattern is to first define base sources from tables with all measure definitions and dimensions. This would allow an analyst to get most of interesting numbers from those tables.
+Next step would to be to extend base sources by joining them together and calculating cross-table metrics.
+
+I am starting with Orders table, containing all customer transactions:
+>>>markdown
+Starting to work on 25 days of DAX. As first questions are focused on products, i am going to define 'Products' source from products table and extending it with simple measures.
+>>>malloy
+
+
+
+source: Products is duckdb.table('../northwind_test/parquet/products.parquet') 
+    extend {
+        
+        measure: product_count is count()
+        measure: total_price is unitPrice.sum()
+        measure: avg_price is round(unitPrice.avg(),2)
+        measure: all_avg_price is all(avg(unitPrice))
+        measure: all_max_price is all(max(unitPrice))
+      
+        
+}
+
+    
+
+>>>markdown
+Question 1: How many current products cost less then 20$?
+>>>malloy
+
+run: Products -> {
+    aggregate: product_count --measure
+    where: discontinued = 0 and
+    unitPrice < 20
+}
+>>>markdown
+Question 2: Which product is the most expensive? Success at third try. Currently correlated subqueries are not available in Malloy so i added a column with ALL (like calculated column in PBI) and then filtered by the value in this column:
+>>>malloy
+
+
+-- First attempt returned both name and price:
+run: Products -> {
+    project: productName, unitPrice
+    order_by: unitPrice desc
+    limit: 1
+}
+
+-- Second version to have the same result, this time instead of run i can define a query:
+query: top_customer is Products -> {
+  group_by: productName
+  aggregate: total_price --measure
+  limit: 1
+}
+
+--Third version using pipeline, this time only name is returned.
+run:  Products -> {
+   group_by: productName, unitPrice    
+   aggregate: all_max_price  --measure
+    
+} -> {
+    project: productName
+    where: unitPrice = all_max_price  
+}
+
+
+>>>markdown
+Question 3: What is the average unit price for our products?
+>>>malloy
+
+run: Products -> {
+    aggregate: avg_price  --measure
+}
+>>>markdown
+Question 4: How many products are above the average unit price? Here using pipeline again:
+>>>malloy
+-- First version = pipeline
+run:  Products -> {
+   group_by: productName, unitPrice    
+   aggregate: all_avg_price  --measure: all(avg(unitPrice))
+    
+} -> {
+    where: unitPrice > all_avg_price
+    aggregate: result is count()
+}
+
+
+        
+>>>markdown
+As an excercise this can be also achieved by writing query and then running our source with this query joined in extend:
+>>>malloy
+
+-- query
+query: temp_table is  Products -> {
+    group_by: productID   
+    aggregate: all_avg_price --measure: all(avg(unitPrice))
+}
+
+
+-- source with join
+run: Products 
+    extend {
+        join_one: temp_table is from(->temp_table) on productID = temp_table.productID
+        
+    } -> {
+    where: unitPrice > temp_table.all_avg_price
+    aggregate: result is count()
+    }
+>>>markdown
+Question 5: How many products cost between $15 and $25? (inclusive)
+>>>malloy
+run: Products -> {
+    where: unitPrice >= 15 and unitPrice <= 25
+    aggregate: product_count
+}
+>>>markdown
+Question 6: What is the average number of products (not qty) per order? - we need to calculate average order size
+
+First i will define new source 'OrdersDetails':
+>>>malloy
+source: OrderDetails is duckdb.table('../northwind_test/parquet/order_details.parquet')
+>>>markdown
+Now i will write a pipeline query to calculate the result:
+>>>malloy
+run: OrderDetails -> {
+    group_by: orderID
+    aggregate: product_count is count()
+       
+} -> {
+    aggregate: result is avg(product_count)
+}
+>>>markdown
+Question 7: What is the order value in $ of open orders? (not shipped)
+
+For the first time we will need to use two tables to calculate the result: orders and order_detail.
+>>>malloy
+
+source: Orders is duckdb.table('../northwind_test/parquet/orders.parquet') 
+
+    extend {
+    
+        measure: orders_count is count()
+        measure: unique_customers is count(distinct customerID)
+        measure: max_freight is max(freight)
+        measure: min_freight is min(freight)
+        measure: total_freight is sum(freight)
+        measure: avg_freight is avg(freight)
+        
+        
+        dimension: order_year is year(orderDate)
+        dimension: order_month is month(orderDate)
+        dimension: order_date is orderDate::date
+        dimension: shipped_date is shippedDate::date
+        dimension: days_to_ship is days(orderDate::date to shippedDate::date)
+        
+        measure: max_days_to_ship is max(days_to_ship)
+        measure: avg_days_to_ship is avg(days_to_ship)
+
+        -- adding query showing some basic numbers by year and month inside source:
+        query: orders_overview is -> {
+            group_by: order_year
+            group_by: order_month
+            order_by: order_year desc, order_month asc
+            aggregate: 
+                orders_count,
+                unique_customers,
+                max_freight,
+                min_freight,
+                total_freight,
+                avg_freight
+        
+        }
+
+
+}
