@@ -18,22 +18,23 @@ In sources i mix sql (only SELECT * FROM) with Malloy (source specification, sou
 >>>malloy
 
 
-source: csv_categories is duckdb.table("categories.csv") 
+source: csv_categories is duckdb.table('../northwind_test/raw_csv/categories.csv') 
+--duckdb.table('../northwind_test/raw_csv/products.parquet')
   extend {
           except: picture
   }
 
 source: csv_customers is duckdb.sql("""
-  SELECT * FROM read_csv('customers.csv',
+  SELECT * FROM read_csv('../northwind_test/raw_csv/customers.csv',
                         auto_detect=true,
                         nullstr = 'NULL',
                         HEADER = true)
 """)
 
-source: csv_employee_terr is duckdb.table("employee_territories.csv")
+source: csv_employee_terr is duckdb.table('../northwind_test/raw_csv/employee_territories.csv')
 
 source: csv_employee is duckdb.sql("""
-  SELECT * FROM read_csv('employees.csv',
+  SELECT * FROM read_csv('../northwind_test/raw_csv/employees.csv',
                         auto_detect=true,
                         nullstr = 'NULL')
 """) 
@@ -41,26 +42,26 @@ source: csv_employee is duckdb.sql("""
           except: notes, photoPath, photo, homePhone
   }
 
-source: csv_orders_det is duckdb.table("order_details.csv")
+source: csv_orders_det is duckdb.table('../northwind_test/raw_csv/order_details.csv')
 
 
 source: csv_orders is duckdb.sql("""
-  SELECT * FROM read_csv('orders.csv',
+  SELECT * FROM read_csv('../northwind_test/raw_csv/orders.csv',
                         auto_detect=true,
                         nullstr = 'NULL')
 """)
 source: csv_products is duckdb.sql("""
-  SELECT * FROM read_csv('products.csv',
+  SELECT * FROM read_csv('../northwind_test/raw_csv/products.csv',
                         auto_detect=true,
                         nullstr = 'NULL')
 """)
-source: csv_regions is duckdb.table("regions.csv")
-source: csv_shippers is duckdb.table("shippers.csv")
+source: csv_regions is duckdb.table('../northwind_test/raw_csv/regions.csv')
+source: csv_shippers is duckdb.table('../northwind_test/raw_csv/shippers.csv')
 
-source: csv_territories is duckdb.table("territories.csv")
+source: csv_territories is duckdb.table('../northwind_test/raw_csv/territories.csv')
 
 source: csv_suppliers is duckdb.sql("""
-  SELECT * FROM read_csv('suppliers.csv',
+  SELECT * FROM read_csv('../northwind_test/raw_csv/suppliers.csv',
                         auto_detect=true,
                         nullstr = 'NULL')
 """)
