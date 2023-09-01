@@ -34,7 +34,7 @@ Next step would to be to extend base sources by joining them together and calcul
 
 I am starting with Orders table, containing all customer transactions:
 >>>markdown
-Starting to work on 25 days of DAX. As first questions are focused on products, i am going to define 'Products' source from products table and extending it with simple measures.
+Starting to work on 25 days of DAX. As first questions are focused on products, i am going to define 'Products' source from products table and extend it with simple measures.
 >>>malloy
 
 
@@ -115,7 +115,7 @@ run:  Products -> {
 
         
 >>>markdown
-As an excercise this can be also achieved by writing query and then running our source with this query joined in extend:
+As an excercise this can be also achieved by writing query and then running our source with this query joined in 'extend':
 >>>malloy
 
 -- query
