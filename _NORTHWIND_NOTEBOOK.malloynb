@@ -32,7 +32,6 @@ To start using Malloy i need to first create model. That includes defining data 
 Nice pattern is to first define base sources from tables with all measure definitions and dimensions. This would allow an analyst to get most of interesting numbers from those tables.
 Next step would to be to extend base sources by joining them together and calculating cross-table metrics.
 
-I am starting with Orders table, containing all customer transactions:
 >>>markdown
 Starting to work on 25 days of DAX. As first questions are focused on products, i am going to define 'Products' source from products table and extending it with simple measures.
 >>>malloy
