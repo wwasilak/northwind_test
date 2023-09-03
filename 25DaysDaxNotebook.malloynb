@@ -1,0 +1,250 @@
+>>>markdown
+To learn some Malloy's basic i've chosen Northwind dataset and would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company).
+
+This challenge is a great way to train DAX skills and i highly recommend it to anyone working with Power Bi. 
+
+Now in this challenge all the answer are in form of single metric or string - i will not be returning tables here and i will not be able to show some of Malloy's concepts like e.g. nesting.
+>>>markdown
+
+
+I've decided to use csv files from this source:
+https://github.com/graphql-compose/graphql-compose-examples/tree/master/examples/northwind/data/csv .
+When using csv or parquet files DuckDb is used as underlying engine. 
+There are also options to connect to BigQuery or Postgres.
+
+Dataset consists of 11 tables (2 tables are missing from original schema: customer_customer_demo and customer_demographics).
+
+This how original schema looks like: (from https://github.com/yugabyte/yugabyte-db/wiki/Northwind-Sample-Database)
+
+![Alt text](schema.png)
+
+
+THE MODEL
+
+To start using Malloy i need to first create model. That includes defining data sources, specifying joins, creating dimensions and measures. Malloy is designed in a way to work swiftly with transactional data, so there is no need to create dimensional model (e.g. star schema). This is a different approach than the one in Power Bi ecosystem, where the best practice is to create star schema, a design that guarantees good performance and results in simplified DAX code.
+
+Nice pattern is to first define base sources from tables with measures' definitions and dimensions (we can think about dimensions as calculated columns in PBI world). This would allow an analyst to get most of interesting numbers from those tables. 
+Next step would to be to extend base sources by joining them together and calculating cross-table metrics.
+
+So to repeat what i wrote above (as i messed this up when trying for the first time): In the cell bellow i will be defining my basic sources - by 'basic' i am thinking about sources without joins - i will add only measures or dimensions. In case a join will be needed to solve particulat question i will create a new source from basic one, extended with join_one or join_many clause (this new source will have different name).
+
+
+So i will be coming back to this cell below to add measure or dimension from time to time. There is also a possibility to extend defined sources by giving them different names or to extend them in 'run' statement. 
+>>>malloy
+source: Categories is duckdb.table('../northwind_test/parquet/categories.parquet')
+
+source: Customers is duckdb.table('../northwind_test/parquet/customers.parquet') 
+
+source: EmployeeTerritories is duckdb.table('../northwind_test/parquet/employee_territories.parquet') 
+
+source: Employees  is duckdb.table('../northwind_test/parquet/employees.parquet') 
+
+source: OrderDetails is duckdb.table('../northwind_test/parquet/order_details.parquet')
+    extend {
+
+         dimension: revenue is unitPrice * quantity -- added for question #7
+    }
+
+source: Orders is duckdb.table('../northwind_test/parquet/orders.parquet') 
+
+
+source: Products is duckdb.table('../northwind_test/parquet/products.parquet') 
+    extend {
+        
+        measure: product_count is count()
+        measure: total_price is unitPrice.sum()
+        measure: avg_price is round(unitPrice.avg(),2)
+        measure: all_avg_price is all(avg(unitPrice))
+        measure: all_max_price is all(max(unitPrice))
+      
+        
+}
+
+source: Regions is duckdb.table('../northwind_test/parquet/regions.parquet') 
+
+source: Shippers is duckdb.table('../northwind_test/parquet/shippers.parquet') 
+
+source: Suppliers is duckdb.table('../northwind_test/parquet/suppliers.parquet') 
+
+source: Territories is duckdb.table('../northwind_test/parquet/territories.parquet') 
+>>>markdown
+
+Question 1: How many current products cost less then 20$?
+>>>malloy
+
+run: Products -> {
+    aggregate: product_count --measure
+    where: discontinued = 0 and
+    unitPrice < 20
+}
+>>>markdown
+
+Question 2: Which product is the most expensive? Success at third try. Currently correlated subqueries are not available in Malloy so i added a column with ALL (like calculated column in PBI) and then filtered by the value in this column:
+>>>malloy
+
+-- First attempt, but returned both name and price. As malloys is translated to SQL, 'ordery_by' is still computed after 'project'
+-- so we need to have unitPrice included in 'project'
+run: Products -> {
+    order_by: unitPrice desc
+    project: productName, unitPrice
+    limit: 1
+}
+
+-- Second version to have the same result, this time instead of run i am defining a named query:
+query: top_customer is Products -> {
+  group_by: productName
+  aggregate: total_price --measure
+  limit: 1
+}
+
+--Third version using pipeline, this time only name is returned. Bingo!
+run:  Products -> {
+   group_by: productName, unitPrice    
+   aggregate: all_max_price  --measure
+    
+} -> {
+    project: productName
+    where: unitPrice = all_max_price  
+}
+
+
+>>>markdown
+
+Question 3: What is the average unit price for our products?
+>>>malloy
+
+
+run: Products -> {
+    aggregate: avg_price  --measure
+}
+>>>markdown
+
+Question 4: How many products are above the average unit price? 
+
+Here using pipeline again + measure with 'all'
+>>>malloy
+
+-- First version = pipeline
+run:  Products -> {
+   group_by: productName, unitPrice    
+   aggregate: all_avg_price  --measure: all(avg(unitPrice))
+    
+} -> {
+    where: unitPrice > all_avg_price
+    aggregate: result is count()
+}
+
+
+        
+>>>markdown
+
+As an excercise this can be also achieved by writing query and then running our source with this query joined in 'extend':
+>>>malloy
+
+
+
+query: temp_table is  Products -> {
+    group_by: productID   
+    aggregate: all_avg_price --measure: all(avg(unitPrice))
+}
+
+run: Products 
+    extend {
+        join_one: temp_table is from(->temp_table) on productID = temp_table.productID
+        
+    } -> {
+    where: unitPrice > temp_table.all_avg_price
+    aggregate: result is count()
+    }
+>>>markdown
+
+Question 5: How many products cost between $15 and $25? (inclusive)
+>>>malloy
+
+run: Products -> {
+    where: unitPrice >= 15 and unitPrice <= 25
+    aggregate: product_count
+}
+>>>markdown
+
+Question 6: What is the average number of products (not qty) per order? - we need to calculate average order size
+
+>>>markdown
+
+Also calculated using pipeline:
+>>>malloy
+
+run: OrderDetails -> {
+    group_by: orderID
+    aggregate: product_count is count()
+       
+} -> {
+    aggregate: result is avg(product_count)
+}
+
+>>>markdown
+
+Question 7: What is the order value in $ of open orders? (not shipped)
+
+
+For the first time we will need to use two tables to calculate the result: orders and order_detail. I can solve this question starting form Orders source or OrderDetail source. 
+
+>>>markdown
+If i start from OrderDetails i have two options:
+1. extend OrderDetails source as new one (similar as in previous cell with Orders source)
+2. local extension using 'run: source extend {}' in form of a pipeline
+
+
+ I am using join_one as for each record in OrderDetails i have only one matching record in Orders source. Important thing is that i move back to my OrderDetails source and added dimension 'revenue' in extend clause. It is like a calculated column in Power Bi.
+>>>malloy
+--option 1 - extension in new source deifinition
+source: OrdersDetailsExt is OrderDetails
+
+    extend {
+       
+        join_one: Orders on Orders.orderID = orderID
+    
+        
+        query: q7_result_2 is {
+        where: Orders.shippedDate = null
+        aggregate: test is sum(revenue) --as my 'revenue' dimension is local i can use sum(revenue)
+        }
+    }
+>>>malloy
+--option 2 - extension in 'run' clause - it can be used only in this query
+run: OrderDetails
+    extend {
+         join_one: Orders on Orders.orderID = orderID
+    } -> {
+        where: Orders.shippedDate = null
+        aggregate: test is sum(revenue) --as my 'revenue' dimension is local i can use sum(revenue)
+    }
+>>>markdown
+If i would like to start from Orders then i can create a new source and extend it with a join. I am using join_many as for one row in Orders source i have multiple rows in OrderDetails source. I am also adding final query in 'extend' part:
+>>>malloy
+source: OrdersExt is Orders
+
+    extend {
+        
+        join_many: OrderDetails on OrderDetails.orderID = orderID
+    
+        -- and here is final query giving me the correct result:
+        query: result is {
+            where: shippedDate = null
+            aggregate: orders_value is OrderDetails.revenue.sum() --as dimension 'revenue' is foreign i need to put sum() at the end
+        }
+    }
+>>>markdown
+Question 8: How many orders are single item (only one product ordered)?
+
+To answer this question i need OrderDetails source. Something new here is the use of 'all' + grouping dimension. Thanks to that i can control on what granularity i am aggregating numbers:
+>>>malloy
+query: single_item_order is OrderDetails -> {
+    group_by: orderID 
+    aggregate: item_count is all(count(), orderID) --i am using grouping_dimension here
+} -> {
+    where: item_count = 1
+    aggregate: result is count()
+}
+>>>markdown
+Question 9: Avg sales per transaction for "Romero y Tobillo"
