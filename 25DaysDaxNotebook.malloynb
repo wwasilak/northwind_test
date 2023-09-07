@@ -21,15 +21,16 @@ This how original schema looks like: (from https://github.com/yugabyte/yugabyte-
 
 THE MODEL
 
-To start using Malloy i need to first create model. That includes defining data sources, specifying joins, creating dimensions and measures. Malloy is designed in a way to work swiftly with transactional data, so there is no need to create dimensional model (e.g. star schema). This is a different approach than the one in Power Bi ecosystem, where the best practice is to create star schema, a design that guarantees good performance and results in simplified DAX code.
+To start using Malloy i need to first create model. That includes defining data sources, specifying joins, creating dimensions and measures. Malloy is designed in a way to work swiftly with transactional data and from what i red there is no need to create dimensional model (e.g. star schema). This is a different approach than the one in Power Bi ecosystem, where the best practice is to create star schema, a design that guarantees good performance and simplified DAX code.
 
 I can work on the model in two ways:
-1. First define base sources from tables with measures' definitions and dimensions (we can think about dimensions as calculated columns in PBI world). This would allow me to get most of interesting numbers from those tables. Next step would to be to create new sources by extending those base sources with joins.
-2. As i have database schema i can specify joins from start. I just need to rember to define sources in order from the ones on the edge to ones in the center.  
+1. As i have database schema i can specify joins from start. To join sources their definition needs to exist so I would have to start from outermost tables in the schema and move to the center.  
+2. First define base sources from tables together with measures and dimensions (we can think about dimensions as calculated columns in PBI world). This join-less model would allow me to calculate most of the interesting numbers from those tables. For cross-table metrics, i would create new sources by extending those base sources with joins.
 
-There is also an option to define join for a source on the fly (so it would work only inside query) using 'run: source_name extend {}'.
 
-I will define my sources using second way so starting from edge to the center:
+There is also an option to define join in a source on the fly (so it would work only inside query) using 'run: source_name extend {}'.
+
+In this project I will define all my sources + joins in the first cell:
 >>>malloy
 
 -- starting with OrderDetails branch. First defining Categories and Suppliers and then joining them inside Products:
@@ -155,7 +156,7 @@ run: Products -> {
     limit: 1
 }
 
--- Second version to have the same result, this time instead of run i am defining a named query:
+-- same result as above but in different way, this time instead of run i am defining a named query:
 query: top_customer is Products -> {
   group_by: productName
   aggregate: total_price --measure
@@ -262,14 +263,15 @@ run: Orders -> {
         
 }
 >>>markdown
-If i would like to start from OrderDetails i have two options:
+I cannot start from OrderDetails source as i can't add join to Orders inside. So i have two options:
 
-1. extend OrderDetails source as new one (similar as in previous cell with Orders source)
+1. create new source from OrderDetails and add join inside
 2. local extension using 'run: source extend {}' in form of a pipeline
 
 
  I am using join_one as for each record in OrderDetails i have only one matching record in Orders source. Important thing is that i move back to my OrderDetails source and added dimension 'revenue' in extend clause. It is like a calculated column in Power Bi.
 >>>malloy
+
 --option 1 - extension in new source deifinition
 source: OrdersDetailsExt is OrderDetails
 
@@ -391,13 +393,23 @@ run: Orders -> {
 }
 >>>markdown
 Question 14: How many customers has never purchased Queso Cabrales?
+>>>markdown
+Pause - need to understand how joins work across
 >>>malloy
-run: Orders -> {
-    group_by: orderID, Products.productID
+-- works fine
+run: Products -> {
+    group_by: productName, Suppliers.companyName, Categories.categoryName
 }
+>>>malloy
 
+-- works fine
 run: OrderDetails -> {
-    group_by: productID, Products.productName
+    group_by: orderID, Products.productName
+}
+>>>malloy
+-- doesn't work
+run: OrderDetails -> {
+    group_by: orderID, Products.productName, Suppliers.companyName, Categories.categoryName
 }
 >>>markdown
 Question 15: How many customers have purchased only Queso Cabrales?
