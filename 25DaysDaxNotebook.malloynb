@@ -1,7 +1,7 @@
 >>>markdown
 ### SCOPE
 
-In this project i would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company) using Malloy. Now in this challenge all the required answers are in form of single numeric value or string - i won't be returning tables here and i won't be able to show some of Malloy's key concepts (like nested queries).
+In this project i would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company) using Malloy. Now in this challenge all the required answers are in form of single numeric value or string - i won't be returning tables here and i won't be able to show some of Malloy's key concepts (like reusing queries, nesting and many more). So this notebook is begginer's level.
 >>>markdown
 
 
@@ -11,21 +11,21 @@ When using csv or parquet files DuckDb is used as underlying engine (currently M
 
 Dataset consists of 11 tables (2 tables are missing from original schema: customer_customer_demo and customer_demographics).
 
-This how original schema looks like: (from https://github.com/yugabyte/yugabyte-db/wiki/Northwind-Sample-Database)
+This is how original schema looks like: (from https://github.com/yugabyte/yugabyte-db/wiki/Northwind-Sample-Database)
 
 ![Alt text](schema.png)
 
 
 ### THE MODEL
 
-To start using Malloy i need to first create model. That includes defining data sources, specifying joins, creating dimensions and measures. Malloy is designed in a way to work swiftly with transactional data and from what i understand there is no need to create dimensional model. This is a different approach than the one in Power Bi ecosystem, where the best practice is to create star schema, a design that guarantees good performance and simplified DAX code.
+To start using Malloy, first i need to create model. This includes defining data sources, specifying joins, creating dimensions and measures. Malloy is designed in a way to work swiftly with transactional data and (from what i understand) there is no need to create dimensional model. This is a different approach than the one in Power Bi ecosystem, where the best practice is to create star schema, a design that guarantees good performance and simplified DAX code.
 
 I can work on the model in two ways:
-1: As i have database schema i can specify all the joins from start. To specify a  join inside source, the joined source needs to exist already, so I would have to start from outermost tables in the schema and move to the center.
+Option 1: As i have database schema i can specify all the joins from start. To specify a  join inside source, the joined source needs to exist already, so I would have to start from outermost tables in the schema and move to the center.
 
-2: First i would define base sources from tables together with measures and dimensions (we can think about dimensions as calculated columns in PBI world). This join-less model would allow me to calculate most of the interesting numbers from those tables. For cross-table metrics, i would create new sources by extending those base sources with joins.
+Option 2: First i would define base sources from tables together with measures and dimensions (we can think about dimensions as calculated columns in PBI world). This join-less model would allow me to calculate most of the interesting numbers from those tables. For cross-table metrics, i would create new sources by extending those base sources with joins.
 
-(There is also an option to define join on the fly (so it would work only inside query) using 'run: source_name extend {}'.)
+(There is also third option: define join on the fly (so it would work only for specific query) using 'run: source_name extend {}'.)
 
 I will stick with option 1:
 >>>malloy
@@ -148,8 +148,8 @@ run: Products -> {
 Question 2: Which product is the most expensive? Success at third try. Currently correlated subqueries are not available in Malloy so i added a column with ALL (like calculated column in PBI) and then filtered by the value in this column:
 >>>malloy
 
--- First attempt, but returned both name and price. As malloys is translated to SQL, 'ordery_by' is still computed after 'project'
--- we need to have unitPrice included in 'project':
+-- First attempt, but returned both name and price. As malloy is translated to SQL, 'ordery_by' is still computed after 'project'
+-- so we need to have unitPrice column included in 'project' clause:
 
 
 run: Products -> {
@@ -173,7 +173,6 @@ run:  Products -> {
     project: productName
     where: unitPrice = all_max_price  
 }
-
 
 >>>markdown
 
@@ -215,7 +214,6 @@ run: Products -> {
 >>>markdown
 
 Question 6: What is the average number of products (not qty) per order? - this question was later clarified: we need to calculate average order size:
-
 >>>markdown
 
 Also calculated using pipeline:
@@ -228,14 +226,12 @@ run: OrderDetails -> {
 } -> {
     aggregate: average_order_size is avg(product_count)
 }
-
 >>>markdown
 
 Question 7: What is the order value in $ of open orders? (not shipped)
 
 
 For the first time we will make use o join to calculate the result. The join is specified in our model, in Orders source:
-
 >>>malloy
 run: Orders -> {
         where: shippedDate = null
@@ -290,7 +286,6 @@ query: single_item_orders is OrderDetails -> {
 Question 9: Avg sales per transaction for "Romero y Tobillo"
 
 A nice question as this time i need 3 sources to answer (OrderDetails - Orders - Customers). As i've already defined my model it should be easy - i will need Orders and OrderDetails but also Customers as name 'Romero y Tabillo' can be found only there. There is a typo in the question so to find correct companyName i've made a helper query:
-
 >>>malloy
 
 run: Customers -> {
@@ -453,7 +448,6 @@ run: Orders -> {
 -> {
     aggregate: result is count()
 }
-
 >>>markdown
 Question 16: How many products are out of stock?
 >>>malloy
@@ -513,7 +507,6 @@ run: Products extend {
     where: value = max_value
     project: companyName
 }
-
 >>>markdown
 Question 21: How many employees (%) are female?
 >>>malloy
