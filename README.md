@@ -6,7 +6,7 @@ Two notebooks were created for this project:
 1. DataTransformation.malloysql - raw csv files transformed to parquet files
 2. 25DaysDaxNotebook.malloynb - model + answers
 
-Notebooks can be accessed using browser version of Vscode on .malloynb file (enter the file and press '.' on your keyboard).
+Notebooks can be accessed using browser version of Vscode on .malloynb or .malloysql file (enter the file and press '.' on your keyboard).
 
 The source to learn about Malloy language:
 https://malloydata.github.io/documentation/
