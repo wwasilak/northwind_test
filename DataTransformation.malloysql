@@ -1,18 +1,19 @@
 >>>markdown
 
-This is Malloy's .malloysql file. It has the same format (notebook) as .malloynb but serves different purpose. We can write both Malloy and SQL syntax in this file so it is perfect to transform data, create views in database or copy csv to parquet. 
+This is Malloy's .malloysql file. It has the same format (notebook) as .malloynb but serves different purpose. We can write both Malloy and SQL syntax in this file so it is perfect for transforming data, creating views in database or copying csv to parquet. 
 I am using it here to:
 1. change .csv source files to parquet (better performance) using duckdb's COPY..TO
 2. clean the data (mainly changing 'NULL' values to proper nulls and not selecting some of the columns)
 >>>markdown
 
 As first step i've specified .csv sources in 100% Malloy cell. The names of these sources will be then used in COPY..TO operation.
-First draft of the whole process is not worth showing as i was unaware that duckdb can substitue choosen string with null value. Thanks to Malloy's Slack channel i now know that and it simplified the code a lot. 
+This is a second version of this notebook. Thrown away first version as i was unaware that duckdb can substitue choosen string with null value. Thanks to Malloy's Slack channel i now know that and it simplified the code a lot. 
 
-Just an example of my first approach where i used Malloy's pick expression to change 'NULL' to proper null:
+(An example of my first approach where i used Malloy's pick expression to change 'NULL' to proper null:
+```malloy
 region is region ? pick region when != 'NULL' else null
-
-It worked, but it is not efficient.
+```
+It worked, but it is not efficient.)
 
 In sources i mix sql (only SELECT * FROM) with Malloy (source specification, source extension with except to remove unwanted columns):
 >>>malloy
@@ -33,7 +34,7 @@ source: csv_customers is duckdb.sql("""
 
 source: csv_employee_terr is duckdb.table('../northwind_test/raw_csv/employee_territories.csv')
 
-source: csv_employee is duckdb.sql("""
+source: csv_employees is duckdb.sql("""
   SELECT * FROM read_csv('../northwind_test/raw_csv/employees.csv',
                         auto_detect=true,
                         nullstr = 'NULL')
@@ -98,7 +99,7 @@ copy %{
 >>>sql
 
 copy %{
-  csv_employee -> {
+  csv_employees -> {
     project: *  
     }
 }%  to 'C:\Malloy\Northwind\northwind_test\parquet\employees.parquet' (FORMAT 'parquet', CODEC 'ZSTD')

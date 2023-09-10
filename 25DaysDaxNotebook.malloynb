@@ -1,16 +1,13 @@
 >>>markdown
-To learn some Malloy's basic i've chosen Northwind dataset and would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company).
+### SCOPE
 
-This challenge is a great way to train DAX skills and i highly recommend it to anyone working with Power Bi. 
-
-Now in this challenge all the answer are in form of single metric or string - i will not be returning tables here and i will not be able to show some of Malloy's concepts (e.g. queries with 'nest').
+In this project i would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company) using Malloy. Now in this challenge all the required answers are in form of single numeric value or string - i won't be returning tables here and i won't be able to show some of Malloy's key concepts (like nested queries).
 >>>markdown
 
 
 I've decided to use csv files from this source:
 https://github.com/graphql-compose/graphql-compose-examples/tree/master/examples/northwind/data/csv .
-When using csv or parquet files DuckDb is used as underlying engine. 
-There are also options to connect to BigQuery or Postgres.
+When using csv or parquet files DuckDb is used as underlying engine (currently Malloy can be used also with BigQuery or Postgres). Csv files were transformed to parquet files (this can be visible in **DataTransformation.malloysql** notebook).
 
 Dataset consists of 11 tables (2 tables are missing from original schema: customer_customer_demo and customer_demographics).
 
@@ -19,21 +16,21 @@ This how original schema looks like: (from https://github.com/yugabyte/yugabyte-
 ![Alt text](schema.png)
 
 
-THE MODEL
+### THE MODEL
 
-To start using Malloy i need to first create model. That includes defining data sources, specifying joins, creating dimensions and measures. Malloy is designed in a way to work swiftly with transactional data and from what i red there is no need to create dimensional model (e.g. star schema). This is a different approach than the one in Power Bi ecosystem, where the best practice is to create star schema, a design that guarantees good performance and simplified DAX code.
+To start using Malloy i need to first create model. That includes defining data sources, specifying joins, creating dimensions and measures. Malloy is designed in a way to work swiftly with transactional data and from what i understand there is no need to create dimensional model. This is a different approach than the one in Power Bi ecosystem, where the best practice is to create star schema, a design that guarantees good performance and simplified DAX code.
 
 I can work on the model in two ways:
-1. As i have database schema i can specify joins from start. To join sources their definition needs to exist so I would have to start from outermost tables in the schema and move to the center.  
-2. First define base sources from tables together with measures and dimensions (we can think about dimensions as calculated columns in PBI world). This join-less model would allow me to calculate most of the interesting numbers from those tables. For cross-table metrics, i would create new sources by extending those base sources with joins.
+1: As i have database schema i can specify all the joins from start. To specify a  join inside source, the joined source needs to exist already, so I would have to start from outermost tables in the schema and move to the center.
 
+2: First i would define base sources from tables together with measures and dimensions (we can think about dimensions as calculated columns in PBI world). This join-less model would allow me to calculate most of the interesting numbers from those tables. For cross-table metrics, i would create new sources by extending those base sources with joins.
 
-There is also an option to define join in a source on the fly (so it would work only inside query) using 'run: source_name extend {}'.
+(There is also an option to define join on the fly (so it would work only inside query) using 'run: source_name extend {}'.)
 
-In this project I will define all my sources + joins in the first cell:
+I will stick with option 1:
 >>>malloy
 
--- starting with OrderDetails branch. First defining Categories and Suppliers and then joining them inside Products:
+-- i am starting with OrderDetails 'branch'. First defining Categories and Suppliers and then joining them inside Products:
 source: Categories is duckdb.table('../northwind_test/parquet/categories.parquet')
     extend {
         primary_key: categoryID
@@ -73,18 +70,6 @@ source: OrderDetails is duckdb.table('../northwind_test/parquet/order_details.pa
 
 -- ok so i have one 'branch' of the model. Now i need to do the same with second Orders branch. Starting with edge tables:
 
-source: Customers is duckdb.table('../northwind_test/parquet/customers.parquet')
-    extend {
-        primary_key: customerID
-    }
-
-source: Shippers is duckdb.table('../northwind_test/parquet/shippers.parquet') 
-    extend {
-        primary_key: shipperID
-    }
-
--- Customers and Shippers will be joined to Orders later.
-
 
 source: Regions is duckdb.table('../northwind_test/parquet/regions.parquet') 
     extend {
@@ -100,7 +85,7 @@ source: Territories is duckdb.table('../northwind_test/parquet/territories.parqu
         join_one: Regions with regionID
     }
 
--- next Territories to EmployeeTerritories (this is a bridge table) then latter to Emplyees and in the end to Orders:
+-- next Territories to EmployeeTerritories and in next step EmployeeTerritories to Employees
 
 source: EmployeeTerritories is duckdb.table('../northwind_test/parquet/employee_territories.parquet')
     extend {
@@ -116,7 +101,18 @@ source: Employees  is duckdb.table('../northwind_test/parquet/employees.parquet'
         join_many: EmployeeTerritories on EmployeeTerritories.employeeID = employeeID
     }
 
---lastly Orders where i join above branch and also OrderDetails branch together 
+source: Customers is duckdb.table('../northwind_test/parquet/customers.parquet')
+    extend {
+        primary_key: customerID
+    }
+
+source: Shippers is duckdb.table('../northwind_test/parquet/shippers.parquet') 
+    extend {
+        primary_key: shipperID
+    }
+
+
+-- now i will join Customers, Shippers and two 'branches': Employees and OrderDetails, to Orders: 
 source: Orders is duckdb.table('../northwind_test/parquet/orders.parquet')
     extend {
         primary_key: orderID
@@ -134,12 +130,16 @@ source: Orders is duckdb.table('../northwind_test/parquet/orders.parquet')
             
     }
 >>>markdown
+Model is more or less ready. In some of the sources we can spot dimensions and measures - most of these were added later, while answering questions.
+>>>markdown
+### QUESTIONS
+
 
 Question 1: How many current products cost less then 20$?
 >>>malloy
 
 run: Products -> {
-    aggregate: product_count --measure
+    aggregate: product_count --measure: count()
     where: discontinued = 0 and
     unitPrice < 20
 }
@@ -149,25 +149,26 @@ Question 2: Which product is the most expensive? Success at third try. Currently
 >>>malloy
 
 -- First attempt, but returned both name and price. As malloys is translated to SQL, 'ordery_by' is still computed after 'project'
--- so we need to have unitPrice included in 'project'
+-- we need to have unitPrice included in 'project':
+
+
 run: Products -> {
     order_by: unitPrice desc
     project: productName, unitPrice
     limit: 1
 }
 
--- same result as above but in different way, this time instead of run i am defining a named query:
+-- same result as above but in different way, this time instead of 'run:'' i am defining a named query:
 query: top_customer is Products -> {
   group_by: productName
   aggregate: total_price --measure
   limit: 1
 }
 
---Third version using pipeline, this time only name is returned. Bingo!
+--Third version using pipeline, this time only name is returned:
 run:  Products -> {
    group_by: productName, unitPrice    
-   aggregate: all_max_price  --measure
-    
+   aggregate: all_max_price  --measure: all(max(unitPrice))
 } -> {
     project: productName
     where: unitPrice = all_max_price  
@@ -181,7 +182,7 @@ Question 3: What is the average unit price for our products?
 
 
 run: Products -> {
-    aggregate: avg_price  --measure
+    aggregate: avg_price  --measure: round(unitPrice.avg(),2)
 }
 >>>markdown
 
@@ -202,26 +203,6 @@ run:  Products -> {
 
 
         
->>>markdown
-
-As an excercise this can be also achieved by writing query and then running our source with this query joined in 'extend':
->>>malloy
-
-
-
-query: temp_table is  Products -> {
-    group_by: productID   
-    aggregate: all_avg_price --measure: all(avg(unitPrice))
-}
-
-run: Products 
-    extend {
-        join_one: temp_table is from(->temp_table) on productID = temp_table.productID
-        
-    } -> {
-    where: unitPrice > temp_table.all_avg_price
-    aggregate: result is count()
-    }
 >>>markdown
 
 Question 5: How many products cost between $15 and $25? (inclusive)
@@ -245,7 +226,7 @@ run: OrderDetails -> {
     aggregate: product_count is count()
        
 } -> {
-    aggregate: result is avg(product_count)
+    aggregate: average_order_size is avg(product_count)
 }
 
 >>>markdown
@@ -253,34 +234,33 @@ run: OrderDetails -> {
 Question 7: What is the order value in $ of open orders? (not shipped)
 
 
-For the first time we will make use o join to calculate the result. The join is specified in Orders source:
+For the first time we will make use o join to calculate the result. The join is specified in our model, in Orders source:
 
 >>>malloy
 run: Orders -> {
-    
         where: shippedDate = null
-        aggregate: orders_value is OrderDetails.revenue.sum() -- as dimension 'revenue' is foreign i need to put sum() at the end
+        aggregate: orders_value is OrderDetails.revenue.sum() -- dimension 'revenue' is foreign so i need to put sum() at the end
         
 }
 >>>markdown
-I cannot start from OrderDetails source as i can't add join to Orders inside. So i have two options:
+Btw to solve this problem I cannot start from OrderDetails source defined in the model as i can't add join to Orders there (as for OrderDetails, Orders doesn't yet exists). So i have two options:
 
 1. create new source from OrderDetails and add join inside
-2. local extension using 'run: source extend {}' in form of a pipeline
+2. use local extension in from of 'run: source extend {}'
 
 
- I am using join_one as for each record in OrderDetails i have only one matching record in Orders source. Important thing is that i move back to my OrderDetails source and added dimension 'revenue' in extend clause. It is like a calculated column in Power Bi.
+ In both cases i am using join_one as for each record in OrderDetails i have only one matching record in Orders source. Important thing is that i move back to my OrderDetails source and added dimension 'revenue' in extend clause. It is like a calculated column in Power Bi.
 >>>malloy
 
---option 1 - extension in new source deifinition
-source: OrdersDetailsExt is OrderDetails
+--option 1
+source: OrdersDetails_Extended is OrderDetails
 
     extend {
        
         join_one: Orders on Orders.orderID = orderID
     
         
-        query: q7_result_2 is {
+        query: q7_result is {
         where: Orders.shippedDate = null
         aggregate: test is sum(revenue) --as my 'revenue' dimension is local i can use sum(revenue)
         }
@@ -292,14 +272,14 @@ run: OrderDetails
          join_one: Orders on Orders.orderID = orderID
     } -> {
         where: Orders.shippedDate = null
-        aggregate: test is sum(revenue) --as my 'revenue' dimension is local i can use sum(revenue)
+        aggregate: test is sum(revenue)
     }
 >>>markdown
 Question 8: How many orders are single item (only one product ordered)?
 
 To answer this question i need OrderDetails source. Something new here is the use of 'all' + grouping dimension. Thanks to that i can control on what granularity i am aggregating numbers:
 >>>malloy
-query: single_item_order is OrderDetails -> {
+query: single_item_orders is OrderDetails -> {
     group_by: orderID 
     aggregate: item_count is all(count(), orderID) --i am using grouping_dimension here
 } -> {
@@ -309,10 +289,9 @@ query: single_item_order is OrderDetails -> {
 >>>markdown
 Question 9: Avg sales per transaction for "Romero y Tobillo"
 
-A nice question as this time i need 3 sources to answer. As i've already defined my model it should be easy - i will need Orders and OrderDetails but also Customers as name 'Romero y Tabillo' can be found only there:
+A nice question as this time i need 3 sources to answer (OrderDetails - Orders - Customers). As i've already defined my model it should be easy - i will need Orders and OrderDetails but also Customers as name 'Romero y Tabillo' can be found only there. There is a typo in the question so to find correct companyName i've made a helper query:
 
 >>>malloy
--- there is a typo in the question so to find correct companyName i've made a helper query:
 
 run: Customers -> {
     project: companyName
@@ -340,8 +319,8 @@ To make everything work i am changing time stamps to dates using '::date'.
 run: Orders -> {
     where: Customers.companyName = 'North/South'
     group_by:
-         order_date, --dimension added earlier to Orders source
-         now_date is now::date  --timestamp to date 
+         order_date, --dimension added earlier to Orders source (timestamp converted to date)
+         now_date is now::date  -- conversion of timestamp to date 
     aggregate: max_order_date is all(max(order_date))::date
 } 
 -> {
@@ -363,7 +342,7 @@ Question 11: How many customers have ordered only once?
 >>>malloy
 run: Orders -> {
     group_by: customerID
-    aggregate: order_count --measure in Orders source
+    aggregate: order_count --measure: count()
 } -> {
     where: order_count = 1
     aggregate: result is count()
@@ -382,7 +361,8 @@ run: Orders -> {
     aggregate: result is count()
 }
 >>>markdown
-Question 13: How many lost customers in 1998 (no purchases)? (slightly modified, 1998 instead of 2022 as my version of data has different time range, picked 1998)
+Question 13: How many lost customers in 1998 (no purchases)? - so how many customers bought something in 1997 but nothing in 1998
+(slightly modified, 1998 instead of 2022 as my version of data has different time range, picked 1998)
 >>>malloy
 run: Orders -> {
     group_by: orderID, customerID, order_year
@@ -393,43 +373,189 @@ run: Orders -> {
 }
 >>>markdown
 Question 14: How many customers has never purchased Queso Cabrales?
->>>markdown
-Pause - need to understand how joins work across
->>>malloy
--- works fine
-run: Products -> {
-    group_by: productName, Suppliers.companyName, Categories.categoryName
-}
+
+Came up with 2 options here:
+
+1. Here i am first defining a query that returns a table with unique customers that purchased Queso Cabrales.
+Then i am joining this query to new source made from Customers source. Next filtering using 'where' and aggregating the result.
 >>>malloy
 
--- works fine
-run: OrderDetails -> {
-    group_by: orderID, Products.productName
-}
+--distinct customers that purchased Queso Cabrales
+query: queso_table is Orders -> {
+    group_by: 
+        Customers.customerID
+        where: OrderDetails.Products.productName = 'Queso Cabrales' 
+} 
+
+-- new source from Customers with join to query defined above
+    source: Customers_extended is Customers
+    extend {
+        join_one: queso_table is from(->queso_table) on customerID = queso_table.customerID
+    } 
+-- query with filter and aggregation
+run: Customers_extended -> {
+    where: queso_table.customerID = null
+    aggregate: result is count()
+    } 
+        
+>>>markdown
+2. This time i am not using another query. Instead i am defining new source from Customers where i join Orders (to get access to Products) and add dimension called 'queso_flag' that returns 1 when customer bought Queso Cabrales and 0 if he didn't (this duplicates records in this extended source). Next i am running the pipeline query where first i add aggregate that counts unique queso_flags for each customer (this requires to use ALL) and then filter and count the result.
 >>>malloy
--- doesn't work
-run: OrderDetails -> {
-    group_by: orderID, Products.productName, Suppliers.companyName, Categories.categoryName
+
+source: Customers_to_Orders is Customers extend {
+    join_many: Orders on customerID = Orders.customerID
+
+    dimension: 
+    queso_flag is pick 1 when Orders.OrderDetails.Products.productName = 'Queso Cabrales' else 0
 }
+
+ -- adding number of unique queso_flags per customerID:
+ -- if 1 then Customer did buy or didn't buy Queso Cabrales
+ -- if 2 then Customer did buy QC (along with other products)
+
+    run: Customers_to_Orders -> {
+        group_by: customerID, queso_flag 
+        aggregate: flag_count is all(count(distinct queso_flag), customerID)
+        
+    } 
+    -> {
+        where: 
+        flag_count = 1    and   --a customer did buy or didn't buy Queso Cabrales
+        queso_flag = 0          --a customer never bought Queso Cabrales
+        
+        
+        aggregate: result is count()
+    }
+    
 >>>markdown
 Question 15: How many customers have purchased only Queso Cabrales?
+>>>malloy
+ run: Customers_to_Orders -> {
+        
+        group_by: customerID, queso_flag 
+        aggregate: flag_count is all(count(distinct queso_flag), customerID)
+
+    } 
+    -> {
+        where: flag_count = 1 and queso_flag = 1
+        aggregate: result is count()
+    }
+>>>markdown
+At some point question 15 was changed:
+How many customers have only purchased one thing? I am not sure if logic below is correct:
+>>>malloy
+run: Orders -> {
+    group_by: customerID
+    aggregate: products_in_order is count(OrderDetails.productID)
+    having: products_in_order = 1
+} 
+
+-> {
+    aggregate: result is count()
+}
+
 >>>markdown
 Question 16: How many products are out of stock?
+>>>malloy
+--result should be 5:
+run: Products -> {
+    where:  unitsInStock = 0
+    aggregate: result is count()
+
+}
+
+-- if we would like 'discontinued' flag to be included:
+run: Products -> {
+    where: discontinued != 1 and unitsInStock = 0
+    aggregate: result is count()
+
+}
 >>>markdown
 Question 17: How many products need to be restocked (based on restock levels)?
+>>>malloy
+
+run: Products -> {
+    where: unitsInStock < reorderLevel
+    aggregate: result is count()
+
+}
 >>>markdown
 Question 18: How many products on order we need to restock?
+>>>malloy
+-- we should use unitsOnOrder to calculate this:
+run: Products -> {
+    where: unitsInStock < unitsOnOrder
+    aggregate: result is count()
+
+}
 >>>markdown
 Question 19: What is the stocked value of the discontinued products?
+>>>malloy
+run: Products -> {
+    where: discontinued = 1
+    group_by: value is unitPrice * unitsInStock --this could be added as a dimension of course
+} -> {
+    aggregate: result is sum(value)
+}
 >>>markdown
 Question 20: Which vendor has the highest stock value?
+
+As i want to return only vendor name (without value) i am using pipeline:
+>>>malloy
+--to return only name i will use pipeline:
+run: Products extend {
+    dimension: value is unitPrice * unitsInStock
+    measure: max_value is all(max(value))
+} -> {
+    group_by: Suppliers.companyName, value
+    aggregate: max_value
+} -> {
+    where: value = max_value
+    project: companyName
+}
+
 >>>markdown
 Question 21: How many employees (%) are female?
+>>>malloy
+-- seems like i am missing 'gender' column in my table so i will use 'titleOfCourtesy' to solve this:
+
+run: Employees -> {
+    # percent
+    aggregate: female_count is count() {where: titleOfCourtesy = 'Ms.' or titleOfCourtesy = 'Mrs.'} / count()
+    
+}
 >>>markdown
 Question 22: How many employees are 60 years old or over?
+
+Cannot solve this one as i am missing 'age' column in my source.
 >>>markdown
-Question 23: Which employee had the highest sales in 1997 - (slightly modified, 1997 instead of 2022 as my version of data has different time range)?
+Question 23: Which employee had the highest sales in 1997? - (slightly modified, originally it was 2022 but my version of data has different time range)
+>>>malloy
+run: Orders -> {
+    
+        where: order_year = 1997 
+        group_by: full_name is concat(Employees.firstName, ' ', Employees.lastName)
+        aggregate: OrderDetails.revenue.sum()
+        limit: 1
+} -> {
+    project: full_name
+}
 >>>markdown
-Question 24: How many employees sold over 100K$ in 1997 (slightly modified, 1997 instead of 2022 as my version of data has different time range)?
+Question 24: How many employees sold over 100K$ in 1997? (slightly modified, originally it was 2022 but my version of data has different time range)
+>>>malloy
+run: Orders -> {
+    
+        where: order_year = 1997 
+        group_by: employeeID
+        aggregate: sales is OrderDetails.revenue.sum()
+        having: sales > 100000
+} -> {
+    aggregate: result is count()
+}
 >>>markdown
 Question 25: How many employees got hired in 1994?
+>>>malloy
+run: Employees -> {
+        where : year(hireDate) = 1994
+        aggregate: result is count()
+        }
