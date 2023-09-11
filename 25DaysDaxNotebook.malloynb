@@ -283,6 +283,18 @@ query: single_item_orders is OrderDetails -> {
     aggregate: result is count()
 }
 >>>markdown
+**UPDATE**: I've received nice feedback from Malloy's team so i will add simplified version of above query:
+>>>malloy
+
+
+query: single_item_orders_simp is OrderDetails -> {
+    group_by: orderID 
+    aggregate: item_count is count()
+} -> {
+    where: item_count = 1
+    aggregate: result is count()
+}
+>>>markdown
 Question 9: Avg sales per transaction for "Romero y Tobillo"
 
 A nice question as this time i need 3 sources to answer (OrderDetails - Orders - Customers). As i've already defined my model it should be easy - i will need Orders and OrderDetails but also Customers as name 'Romero y Tabillo' can be found only there. There is a typo in the question so to find correct companyName i've made a helper query:
@@ -333,6 +345,15 @@ run: Orders -> {
     aggregate: max_order_date is all(max(order_date))::date
 }
 >>>markdown
+**UPDATE**: Again above solution is more complex than it should be. Below version from Malloy's team:
+>>>malloy
+run: Orders -> {
+    where: Customers.companyName = 'North/South'
+    project: days_since_order is days(order_date to now::date)
+    limit: 1
+    order_by: days_since_order
+}
+>>>markdown
 Question 11: How many customers have ordered only once?
 >>>malloy
 run: Orders -> {
@@ -347,6 +368,8 @@ Question 12: How many new customers in 1998? - (slightly modified, 1998 instead 
 
 I've added new dimension to Orders source: order_year is year(orderDate).
 Also i am using all with grouping dimension on this order_year dimension.
+>>>markdown
+**UPDATE**:  so this query below is not correct as it returns same customer four times, so result = 4. It can be checked by commenting aggregate and uncommenting project in last part of code:
 >>>malloy
 run: Orders -> {
     group_by: orderID, customerID, order_year
@@ -354,17 +377,44 @@ run: Orders -> {
 } -> {
     where: order_year = 1998 and all_min_order_year = 1998
     aggregate: result is count()
+    --project: customerID
+}
+>>>markdown
+**UPDATE:** Below is a query from Lloyd Tabb - simpler and returning correct value:
+>>>malloy
+run: Orders -> {
+    group_by:  customerID
+    aggregate: first_year is min(order_year)
+} 
+-> {
+    where: first_year = 1998 
+    aggregate: result is count()
 }
 >>>markdown
 Question 13: How many lost customers in 1998 (no purchases)? - so how many customers bought something in 1997 but nothing in 1998
 (slightly modified, 1998 instead of 2022 as my version of data has different time range, picked 1998)
+>>>markdown
+**UPDATE:** query below is not correct (same issue as in question 12) - it returns same customer multiple time
 >>>malloy
 run: Orders -> {
     group_by: orderID, customerID, order_year
     aggregate: all_max_order_year is all(max(order_year), customerID)
 } -> {
     where: all_max_order_year = 1997
-    aggregate: result is count()
+    --aggregate: result is count()
+    project: customerID
+}
+>>>markdown
+**UPDATE:** Correct solution from Malloy's team: 
+>>>malloy
+run: Orders -> {
+    group_by: customerID
+    aggregate: order_1997 is count() {where: order_year = 1997}
+    aggregate: order_1998 is count() {where: order_year = 1998}
+    having: order_1997 > 0 and order_1998 = 0
+}
+-> {
+    aggregate: customer_count is count()
 }
 >>>markdown
 Question 14: How many customers has never purchased Queso Cabrales?
