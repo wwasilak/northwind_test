@@ -158,7 +158,7 @@ query: question1 is Products -> {
 }
 >>>markdown
 
-Question 2: Which product is the most expensive? Success at third try. Currently correlated subqueries are not available in Malloy so i added a column with ALL (like calculated column in PBI) and then filtered by the value in this column:
+Question 2: Which product is the most expensive? Success at third try. Currently correlated subqueries are not available in Malloy so i've added a measure with ALL and then filtered by its value:
 >>>malloy
 
 -- First attempt, but returned both name and price. As malloy is translated to SQL, 'ordery_by' is still computed after 'project'
