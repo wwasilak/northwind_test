@@ -1,7 +1,7 @@
 >>>markdown
 ### SCOPE
 
-In this project i would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company) using Malloy. Now in this challenge all the required answers are in form of single numeric value or string - i won't be returning tables here and i won't be able to show some of Malloy's key concepts (like reusing queries, nesting and many more). So this notebook is begginer's level.
+In this project i would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company) using Malloy. Now in this challenge all the required answers are in form of single numeric value or string - i won't be returning tables here and i won't be able to show some of Malloy's key concepts (like reusing queries, nesting and many more). So this notebook is beginner's level.
 >>>markdown
 
 
@@ -135,11 +135,24 @@ Model is more or less ready. In some of the sources we can spot dimensions and m
 ### QUESTIONS
 
 
-Question 1: How many current products cost less then 20$?
+Question 1: How many current products cost less than 20$?
 >>>malloy
-
+-- to get the result i can use 'run' clause - this type of queries are not reusable in other parts of code:
 run: Products -> {
-    aggregate: product_count --measure: count()
+    aggregate: product_count
+    where: discontinued = 0 and
+    unitPrice < 20
+}
+>>>markdown
+(btw by right-clicking on measure or dimension we can easily see its definition using option 'Go to definition' or 'Peek'!)
+>>>malloy
+-- other way is to define named query (added # dashboard tag so that result will be rendered in a different way - but you
+-- need to use 'Run Query' button - it seems not to work with running notebook cell). Rendering
+-- uses Vega-Lite library so anyone familiar with Power Bi's Deneb can modify easily modify visuals.
+
+# dashboard
+query: question1 is Products -> {
+    aggregate: product_count
     where: discontinued = 0 and
     unitPrice < 20
 }
@@ -231,7 +244,7 @@ run: OrderDetails -> {
 Question 7: What is the order value in $ of open orders? (not shipped)
 
 
-For the first time we will make use o join to calculate the result. The join is specified in our model, in Orders source:
+For the first time we will make use of join to calculate the result. The join is specified in our model, in Orders source:
 >>>malloy
 run: Orders -> {
         where: shippedDate = null
@@ -283,7 +296,7 @@ query: single_item_orders is OrderDetails -> {
     aggregate: result is count()
 }
 >>>markdown
-**UPDATE**: I've received nice feedback from Malloy's team so i will add simplified version of above query:
+**UPDATE**: I've received some feedback from Malloy's team so i will add simplified version of above query:
 >>>malloy
 
 
@@ -345,7 +358,7 @@ run: Orders -> {
     aggregate: max_order_date is all(max(order_date))::date
 }
 >>>markdown
-**UPDATE**: Again above solution is more complex than it should be. Below version from Malloy's team:
+**UPDATE**: Again above solution is more complex than it should be. Version from Malloy's team below:
 >>>malloy
 run: Orders -> {
     where: Customers.companyName = 'North/South'
@@ -369,7 +382,7 @@ Question 12: How many new customers in 1998? - (slightly modified, 1998 instead 
 I've added new dimension to Orders source: order_year is year(orderDate).
 Also i am using all with grouping dimension on this order_year dimension.
 >>>markdown
-**UPDATE**:  so this query below is not correct as it returns same customer four times, so result = 4. It can be checked by commenting aggregate and uncommenting project in last part of code:
+**UPDATE**:   here i've wrote it in a wrong way and it is not correct (pointed out by Malloy's team). Query returns same customer four times (result = 4 ). It can be checked by commenting aggregate and uncommenting project in last part of code to see output table:
 >>>malloy
 run: Orders -> {
     group_by: orderID, customerID, order_year
@@ -377,10 +390,10 @@ run: Orders -> {
 } -> {
     where: order_year = 1998 and all_min_order_year = 1998
     aggregate: result is count()
-    --project: customerID
+    // project: customerID
 }
 >>>markdown
-**UPDATE:** Below is a query from Lloyd Tabb - simpler and returning correct value:
+Below is a query from Malloy's team - simpler and returning correct value:
 >>>malloy
 run: Orders -> {
     group_by:  customerID
@@ -401,11 +414,11 @@ run: Orders -> {
     aggregate: all_max_order_year is all(max(order_year), customerID)
 } -> {
     where: all_max_order_year = 1997
-    --aggregate: result is count()
-    project: customerID
+    aggregate: result is count()
+    // project: customerID
 }
 >>>markdown
-**UPDATE:** Correct solution from Malloy's team: 
+Correct solution from Malloy's team: 
 >>>malloy
 run: Orders -> {
     group_by: customerID
@@ -602,3 +615,4 @@ run: Employees -> {
         where : year(hireDate) = 1994
         aggregate: result is count()
         }
+
