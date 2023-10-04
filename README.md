@@ -13,3 +13,5 @@ https://malloydata.github.io/documentation/
 
 I highly advise to visit Slack channel where Malloy's creators quickly answer all questions:
 https://join.slack.com/t/malloy-community/shared_invite/zt-1kgfwgi5g-CrsdaRqs81QY67QW0~t_uw
+
+(syntax updated to Malloy 4 version)
