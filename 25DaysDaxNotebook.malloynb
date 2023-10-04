@@ -1,7 +1,7 @@
 >>>markdown
 ### SCOPE
 
-In this project i would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company) using Malloy. Now in this challenge all the required answers are in form of single numeric value or string - i won't be returning tables here and i won't be able to show some of Malloy's key concepts (like reusing queries, nesting and many more). So this notebook is beginner's level.
+In this select i would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company) using Malloy. Now in this challenge all the required answers are in form of single numeric value or string - i won't be returning tables here and i won't be able to show some of Malloy's key concepts (like reusing queries, nesting and many more). So this notebook is beginner's level.
 >>>markdown
 
 
@@ -161,13 +161,13 @@ query: question1 is Products -> {
 Question 2: Which product is the most expensive? Success at third try. Currently correlated subqueries are not available in Malloy so i've added a measure with ALL and then filtered by its value:
 >>>malloy
 
--- First attempt, but returned both name and price. As malloy is translated to SQL, 'ordery_by' is still computed after 'project'
--- so we need to have unitPrice column included in 'project' clause:
+-- First attempt, but returned both name and price. As malloy is translated to SQL, 'ordery_by' is still computed after 'select'
+-- so we need to have unitPrice column included in 'select' clause:
 
 
 run: Products -> {
     order_by: unitPrice desc
-    project: productName, unitPrice
+    select: productName, unitPrice
     limit: 1
 }
 
@@ -183,7 +183,7 @@ run:  Products -> {
    group_by: productName, unitPrice    
    aggregate: all_max_price  --measure: all(max(unitPrice))
 } -> {
-    project: productName
+    select: productName
     where: unitPrice = all_max_price  
 }
 
@@ -269,7 +269,7 @@ source: OrdersDetails_Extended is OrderDetails
         join_one: Orders on Orders.orderID = orderID
     
         
-        query: q7_result is {
+        view: q7_result is {
         where: Orders.shippedDate = null
         aggregate: test is sum(revenue) --as my 'revenue' dimension is local i can use sum(revenue)
         }
@@ -314,7 +314,7 @@ A nice question as this time i need 3 sources to answer (OrderDetails - Orders -
 >>>malloy
 
 run: Customers -> {
-    project: companyName
+    select: companyName
     where: companyName ~ '%Romero%'
 }
 >>>malloy
@@ -362,7 +362,7 @@ run: Orders -> {
 >>>malloy
 run: Orders -> {
     where: Customers.companyName = 'North/South'
-    project: days_since_order is days(order_date to now::date)
+    select: days_since_order is days(order_date to now::date)
     limit: 1
     order_by: days_since_order
 }
@@ -382,7 +382,7 @@ Question 12: How many new customers in 1998? - (slightly modified, 1998 instead 
 I've added new dimension to Orders source: order_year is year(orderDate).
 Also i am using all with grouping dimension on this order_year dimension.
 >>>markdown
-**UPDATE**:   here i've wrote it in a wrong way and it is not correct (pointed out by Malloy's team). Query returns same customer four times (result = 4 ). It can be checked by commenting aggregate and uncommenting project in last part of code to see output table:
+**UPDATE**:   here i've wrote it in a wrong way and it is not correct (pointed out by Malloy's team). Query returns same customer four times (result = 4 ). It can be checked by commenting aggregate and uncommenting select in last part of code to see output table:
 >>>malloy
 run: Orders -> {
     group_by: orderID, customerID, order_year
@@ -390,7 +390,7 @@ run: Orders -> {
 } -> {
     where: order_year = 1998 and all_min_order_year = 1998
     aggregate: result is count()
-    // project: customerID
+    // select: customerID
 }
 >>>markdown
 Below is a query from Malloy's team - simpler and returning correct value:
@@ -415,7 +415,7 @@ run: Orders -> {
 } -> {
     where: all_max_order_year = 1997
     aggregate: result is count()
-    // project: customerID
+    // select: customerID
 }
 >>>markdown
 Correct solution from Malloy's team: 
@@ -448,7 +448,7 @@ query: queso_table is Orders -> {
 -- new source from Customers with join to query defined above
     source: Customers_extended is Customers
     extend {
-        join_one: queso_table is from(->queso_table) on customerID = queso_table.customerID
+        join_one: queso_table is queso_table on customerID = queso_table.customerID
     } 
 -- query with filter and aggregation
 run: Customers_extended -> {
@@ -473,7 +473,7 @@ source: Customers_to_Orders is Customers extend {
 
     run: Customers_to_Orders -> {
         group_by: customerID, queso_flag 
-        aggregate: flag_count is all(count(distinct queso_flag), customerID)
+        aggregate: flag_count is all(count(queso_flag), customerID)
         
     } 
     -> {
@@ -491,7 +491,7 @@ Question 15: How many customers have purchased only Queso Cabrales?
  run: Customers_to_Orders -> {
         
         group_by: customerID, queso_flag 
-        aggregate: flag_count is all(count(distinct queso_flag), customerID)
+        aggregate: flag_count is all(count(queso_flag), customerID)
 
     } 
     -> {
@@ -568,7 +568,7 @@ run: Products extend {
     aggregate: max_value
 } -> {
     where: value = max_value
-    project: companyName
+    select: companyName
 }
 >>>markdown
 Question 21: How many employees (%) are female?
@@ -594,7 +594,7 @@ run: Orders -> {
         aggregate: OrderDetails.revenue.sum()
         limit: 1
 } -> {
-    project: full_name
+    select: full_name
 }
 >>>markdown
 Question 24: How many employees sold over 100K$ in 1997? (slightly modified, originally it was 2022 but my version of data has different time range)
@@ -615,4 +615,3 @@ run: Employees -> {
         where : year(hireDate) = 1994
         aggregate: result is count()
         }
-
