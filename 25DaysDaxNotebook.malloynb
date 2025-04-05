@@ -1,13 +1,13 @@
 >>>markdown
 ### SCOPE
 
-In this select i would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company) using Malloy. Now in this challenge all the required answers are in form of single numeric value or string - i won't be returning tables here and i won't be able to show some of Malloy's key concepts (like reusing queries, nesting and many more). So this notebook is beginner's level.
+In this select i would like to answer all the questions from Curbal's '25 Days of DAX Fridays! Challenge – Ed1: NorthWind Company' (https://curbal.com/25-days-of-dax-fridays-challenge-ed1-northwind-company) using Malloy. Now in this challenge all the required answers are in form of single numeric value or string - I won't be returning tables here and I won't be able to show some of Malloy's key concepts (like reusing queries, nesting and many more). So this notebook is beginner's level.
 >>>markdown
 
 
 I've decided to use csv files from this source:
 https://github.com/graphql-compose/graphql-compose-examples/tree/master/examples/northwind/data/csv .
-When using csv or parquet files DuckDb is used as underlying engine (currently Malloy can be used also with BigQuery or Postgres). Csv files were transformed to parquet files (this can be visible in **DataTransformation.malloysql** notebook).
+When using csv or parquet files, DuckDb is used as underlying engine. For learning puproses, CSV files were transformed to parquet files using Malloy notebook.
 
 Dataset consists of 11 tables (2 tables are missing from original schema: customer_customer_demo and customer_demographics).
 
@@ -18,9 +18,8 @@ This is how original schema looks like: (from https://github.com/yugabyte/yugaby
 
 ### THE MODEL
 
-To start using Malloy, first i need to create model. This includes defining data sources, specifying joins, creating dimensions and measures. Malloy is designed in a way to work swiftly with transactional data and (from what i understand) there is no need to create dimensional model. This is a different approach than the one in Power Bi ecosystem, where the best practice is to create star schema, a design that guarantees good performance and simplified DAX code.
+To start using Malloy, first i need to create model. This includes defining data sources, specifying joins, creating dimensions and measures. I can work on the model in two ways:
 
-I can work on the model in two ways:
 Option 1: As i have database schema i can specify all the joins from start. To specify a  join inside source, the joined source needs to exist already, so I would have to start from outermost tables in the schema and move to the center.
 
 Option 2: First i would define base sources from tables together with measures and dimensions (we can think about dimensions as calculated columns in PBI world). This join-less model would allow me to calculate most of the interesting numbers from those tables. For cross-table metrics, i would create new sources by extending those base sources with joins.
@@ -130,7 +129,7 @@ source: Orders is duckdb.table('../northwind_test/parquet/orders.parquet')
             
     }
 >>>markdown
-Model is more or less ready. In some of the sources we can spot dimensions and measures - most of these were added later, while answering questions.
+Model is ready. In some of the sources we can spot dimensions and measures - most of these were added later, while answering questions.
 >>>markdown
 ### QUESTIONS
 
@@ -147,8 +146,7 @@ run: Products -> {
 (btw by right-clicking on measure or dimension we can easily see its definition using option 'Go to definition' or 'Peek'!)
 >>>malloy
 -- other way is to define named query (added # dashboard tag so that result will be rendered in a different way - but you
--- need to use 'Run Query' button - it seems not to work with running notebook cell). Rendering
--- uses Vega-Lite library so anyone familiar with Power Bi's Deneb can modify easily modify visuals.
+-- need to use 'Run Query' button - it seems not to work with running notebook cell).
 
 # dashboard
 query: question1 is Products -> {
@@ -158,11 +156,10 @@ query: question1 is Products -> {
 }
 >>>markdown
 
-Question 2: Which product is the most expensive? Success at third try. Currently correlated subqueries are not available in Malloy so i've added a measure with ALL and then filtered by its value:
+Question 2: Which product is the most expensive? Success at second try. Currently correlated subqueries are not available in Malloy so i've added a measure with ALL and then filtered by its value:
 >>>malloy
 
--- First attempt, but returned both name and price. As malloy is translated to SQL, 'ordery_by' is still computed after 'select'
--- so we need to have unitPrice column included in 'select' clause:
+-- First attempt, not perfect as it returned both name and price:
 
 
 run: Products -> {
@@ -171,14 +168,8 @@ run: Products -> {
     limit: 1
 }
 
--- same result as above but in different way, this time instead of 'run:'' i am defining a named query:
-query: top_customer is Products -> {
-  group_by: productName
-  aggregate: total_price --measure
-  limit: 1
-}
 
---Third version using pipeline, this time only name is returned:
+--Second version using pipeline, this time only name is returned:
 run:  Products -> {
    group_by: productName, unitPrice    
    aggregate: all_max_price  --measure: all(max(unitPrice))
@@ -247,15 +238,15 @@ Question 7: What is the order value in $ of open orders? (not shipped)
 For the first time we will make use of join to calculate the result. The join is specified in our model, in Orders source:
 >>>malloy
 run: Orders -> {
-        where: shippedDate = null
+        where: shippedDate is null
         aggregate: orders_value is OrderDetails.revenue.sum() -- dimension 'revenue' is foreign so i need to put sum() at the end
         
 }
 >>>markdown
-Btw to solve this problem I cannot start from OrderDetails source defined in the model as i can't add join to Orders there (as for OrderDetails, Orders doesn't yet exists). So i have two options:
+Btw to solve this problem I cannot start from OrderDetails source defined in the model as i can't add join to Orders there (looking at the order in which I created sources, for OrderDetails, Orders doesn't yet exists). I have two options:
 
 1. create new source from OrderDetails and add join inside
-2. use local extension in from of 'run: source extend {}'
+2. use local extension in form of 'run: source extend {}'
 
 
  In both cases i am using join_one as for each record in OrderDetails i have only one matching record in Orders source. Important thing is that i move back to my OrderDetails source and added dimension 'revenue' in extend clause. It is like a calculated column in Power Bi.
@@ -270,7 +261,7 @@ source: OrdersDetails_Extended is OrderDetails
     
         
         view: q7_result is {
-        where: Orders.shippedDate = null
+        where: Orders.shippedDate is null
         aggregate: test is sum(revenue) --as my 'revenue' dimension is local i can use sum(revenue)
         }
     }
@@ -280,23 +271,13 @@ run: OrderDetails
     extend {
          join_one: Orders on Orders.orderID = orderID
     } -> {
-        where: Orders.shippedDate = null
+        where: Orders.shippedDate is null
         aggregate: test is sum(revenue)
     }
 >>>markdown
 Question 8: How many orders are single item (only one product ordered)?
 
-To answer this question i need OrderDetails source. Something new here is the use of 'all' + grouping dimension. Thanks to that i can control on what granularity i am aggregating numbers:
->>>malloy
-query: single_item_orders is OrderDetails -> {
-    group_by: orderID 
-    aggregate: item_count is all(count(), orderID) --i am using grouping_dimension here
-} -> {
-    where: item_count = 1
-    aggregate: result is count()
-}
->>>markdown
-**UPDATE**: I've received some feedback from Malloy's team so i will add simplified version of above query:
+To answer this question i need OrderDetails source:
 >>>malloy
 
 
@@ -310,7 +291,7 @@ query: single_item_orders_simp is OrderDetails -> {
 >>>markdown
 Question 9: Avg sales per transaction for "Romero y Tobillo"
 
-A nice question as this time i need 3 sources to answer (OrderDetails - Orders - Customers). As i've already defined my model it should be easy - i will need Orders and OrderDetails but also Customers as name 'Romero y Tabillo' can be found only there. There is a typo in the question so to find correct companyName i've made a helper query:
+A nice question as this time i need 3 sources to answer (OrderDetails - Orders - Customers). There is a typo in the question so to find correct companyName i've made a helper query:
 >>>malloy
 
 run: Customers -> {
@@ -335,31 +316,6 @@ I need to use Orders and Customers sources and also a built in time constant 'no
 
 To make everything work i am changing time stamps to dates using '::date'.
 >>>malloy
-
-run: Orders -> {
-    where: Customers.companyName = 'North/South'
-    group_by:
-         order_date, --dimension added earlier to Orders source (timestamp converted to date)
-         now_date is now::date  -- conversion of timestamp to date 
-    aggregate: max_order_date is all(max(order_date))::date
-} 
--> {
-    where: order_date = max_order_date
-    group_by: result is days(order_date to now_date)
-    
-}
-
---this is output of first part of query:
-run: Orders -> {
-    where: Customers.companyName = 'North/South'
-    group_by:
-         order_date, --dimension added earlier to source
-         now_date is now::date  --timestamp to date 
-    aggregate: max_order_date is all(max(order_date))::date
-}
->>>markdown
-**UPDATE**: Again above solution is more complex than it should be. Version from Malloy's team below:
->>>malloy
 run: Orders -> {
     where: Customers.companyName = 'North/South'
     select: days_since_order is days(order_date to now::date)
@@ -378,22 +334,6 @@ run: Orders -> {
 }
 >>>markdown
 Question 12: How many new customers in 1998? - (slightly modified, 1998 instead of 2022 as my version of data has different time range)
-
-I've added new dimension to Orders source: order_year is year(orderDate).
-Also i am using all with grouping dimension on this order_year dimension.
->>>markdown
-**UPDATE**:   here i've wrote it in a wrong way and it is not correct (pointed out by Malloy's team). Query returns same customer four times (result = 4 ). It can be checked by commenting aggregate and uncommenting select in last part of code to see output table:
->>>malloy
-run: Orders -> {
-    group_by: orderID, customerID, order_year
-    aggregate: all_min_order_year is all(min(order_year), customerID)
-} -> {
-    where: order_year = 1998 and all_min_order_year = 1998
-    aggregate: result is count()
-    // select: customerID
-}
->>>markdown
-Below is a query from Malloy's team - simpler and returning correct value:
 >>>malloy
 run: Orders -> {
     group_by:  customerID
@@ -405,20 +345,7 @@ run: Orders -> {
 }
 >>>markdown
 Question 13: How many lost customers in 1998 (no purchases)? - so how many customers bought something in 1997 but nothing in 1998
-(slightly modified, 1998 instead of 2022 as my version of data has different time range, picked 1998)
->>>markdown
-**UPDATE:** query below is not correct (same issue as in question 12) - it returns same customer multiple time
->>>malloy
-run: Orders -> {
-    group_by: orderID, customerID, order_year
-    aggregate: all_max_order_year is all(max(order_year), customerID)
-} -> {
-    where: all_max_order_year = 1997
-    aggregate: result is count()
-    // select: customerID
-}
->>>markdown
-Correct solution from Malloy's team: 
+(slightly modified, 1998 instead of 2022 as my version of data has different time range):
 >>>malloy
 run: Orders -> {
     group_by: customerID
@@ -452,7 +379,7 @@ query: queso_table is Orders -> {
     } 
 -- query with filter and aggregation
 run: Customers_extended -> {
-    where: queso_table.customerID = null
+    where: queso_table.customerID is null
     aggregate: result is count()
     } 
         
@@ -500,7 +427,7 @@ Question 15: How many customers have purchased only Queso Cabrales?
     }
 >>>markdown
 At some point question 15 was changed:
-How many customers have only purchased one thing? I am not sure if logic below is correct:
+How many customers have only purchased one thing?
 >>>malloy
 run: Orders -> {
     group_by: customerID
