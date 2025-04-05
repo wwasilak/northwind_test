@@ -1,22 +1,16 @@
 >>>markdown
 
+
 This is Malloy's .malloysql file. It has the same format (notebook) as .malloynb but serves different purpose. We can write both Malloy and SQL syntax in this file so it is perfect for transforming data, creating views in database or copying csv to parquet. 
 I am using it here to:
 1. change .csv source files to parquet (better performance) using duckdb's COPY..TO
 2. clean the data (mainly changing 'NULL' values to proper nulls and not selecting some of the columns)
 >>>markdown
 
-As first step i've specified .csv sources in 100% Malloy cell. The names of these sources will be then used in COPY..TO operation.
-This is a second version of this notebook. Thrown away first version as i was unaware that duckdb can substitue choosen string with null value. Thanks to Malloy's Slack channel i now know that and it simplified the code a lot. 
 
-(An example of my first approach where i used Malloy's pick expression to change 'NULL' to proper null:
-```malloy
-region is region ? pick region when != 'NULL' else null
-```
-It worked, but it is not efficient.)
-
-In sources i mix sql (only SELECT * FROM) with Malloy (source specification, source extension with except to remove unwanted columns):
+As first step i've specified .csv sources. In sources sql is mixed with with Malloy (source specification, source extension with except to remove unwanted columns):
 >>>malloy
+
 
 
 source: csv_categories is duckdb.table('../northwind_test/raw_csv/categories.csv') 
@@ -71,86 +65,98 @@ source: csv_suppliers is duckdb.sql("""
   }
 >>>markdown
 
-Second step is writing Duckdb 'COPY...TO' for each of .csv files. Here i am using Malloy SQL cells. As i removed unwanted columns earlier i can use project: * in each activity:
+
+Second step is writing Duckdb 'COPY...TO' for each of .csv files:
 >>>sql
+
 
 -- connection: duckdb
 
 
 copy %{
   csv_categories -> {
-    project: *  
+    selectt: *  
     }
 }%  to 'C:\Malloy\Northwind\northwind_test\parquet\categories.parquet' (FORMAT 'parquet', CODEC 'ZSTD')
 
 >>>sql
+
 copy %{
   csv_customers -> {
-    project: *  
+    select: *  
     }
 }%  to 'C:\Malloy\Northwind\northwind_test\parquet\customers.parquet' (FORMAT 'parquet', CODEC 'ZSTD')
 
 >>>sql
+
 copy %{
   csv_employee_terr -> {
-    project: *  
+    select: *  
     }
 }%  to 'C:\Malloy\Northwind\northwind_test\parquet\employee_territories.parquet' (FORMAT 'parquet', CODEC 'ZSTD')
 >>>sql
 
+
 copy %{
   csv_employees -> {
-    project: *  
+    select: *  
     }
 }%  to 'C:\Malloy\Northwind\northwind_test\parquet\employees.parquet' (FORMAT 'parquet', CODEC 'ZSTD')
 
 >>>sql
+
 copy %{
   csv_orders_det -> {
-    project: *  
+    select: *  
     }
 }%  to 'C:\Malloy\Northwind\northwind_test\parquet\order_details.parquet' (FORMAT 'parquet', CODEC 'ZSTD')
 
 >>>sql
+
 copy %{
   csv_orders -> {
-    project: *  
+    select: *  
     }
 }%  to 'C:\Malloy\Northwind\northwind_test\parquet\orders.parquet' (FORMAT 'parquet', CODEC 'ZSTD')
 
 >>>sql
+
 copy %{
   csv_products -> {
-    project: *  
+    select: *  
     }
 }%  to 'C:\Malloy\Northwind\northwind_test\parquet\products.parquet' (FORMAT 'parquet', CODEC 'ZSTD')
 
 >>>sql
+
 copy %{
   csv_regions -> {
-    project: *  
+    select: *  
     }
 }%  to 'C:\Malloy\Northwind\northwind_test\parquet\regions.parquet' (FORMAT 'parquet', CODEC 'ZSTD')
 >>>sql
 
+
 copy %{
   csv_shippers -> {
-    project: *  
+    select: *  
     }
 }%  to 'C:\Malloy\Northwind\northwind_test\parquet\shippers.parquet' (FORMAT 'parquet', CODEC 'ZSTD')
 >>>sql
 
 
+
 copy %{
   csv_suppliers -> {
-    project: *  
+    select: *  
     }
 }%  to 'C:\Malloy\Northwind\northwind_test\parquet\suppliers.parquet' (FORMAT 'parquet', CODEC 'ZSTD')
 >>>sql
 
 
+
 copy %{
   csv_territories -> {
-    project: *  
+    select: *  
     }
 }%  to 'C:\Malloy\Northwind\northwind_test\parquet\territories.parquet' (FORMAT 'parquet', CODEC 'ZSTD')
